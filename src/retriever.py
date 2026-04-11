@@ -17,7 +17,7 @@ def get_retriever():
         connection_string=CONNECTION_STRING,
         embedding_function=embeddings,
     )
-    return store.as_retriever(search_kwargs={"k": 3})
+    return store.as_retriever(search_kwargs={"k": 9})
 
 def retrieve(question: str):
     retriever = get_retriever()

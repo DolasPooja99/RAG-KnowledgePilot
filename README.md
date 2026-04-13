@@ -1,4 +1,4 @@
-# KnowledgePilot
+# RAG-KnowledgePilot
 
 Ask questions about your documents using AI. Upload any PDF and get accurate, 
 source-cited answers powered by RAG (Retrieval-Augmented Generation) and Claude.

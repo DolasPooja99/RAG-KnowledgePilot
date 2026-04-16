@@ -82,7 +82,7 @@ streamlit run src/app.py
 ## Project structure
 
 ```
-knowledgepilot/
+rag-knowledgepilot/
 ├── src/
 │   ├── app.py          ← Streamlit UI + upload handling
 │   ├── ingest.py       ← PDF → chunks → embeddings → pgvector

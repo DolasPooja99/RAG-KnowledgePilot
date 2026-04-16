@@ -52,7 +52,7 @@ def get_retriever():
     )
     return store.as_retriever(search_kwargs={"k": 9})
 
-st.title("KnowledgePilot")
+st.title("RAG-KnowledgePilot")
 st.caption("Upload a document and ask questions about it")
 
 with st.sidebar:

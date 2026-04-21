@@ -143,13 +143,14 @@ def ingest_uploaded_pdf(uploaded_file):
     is_book, chapters = detect_book_and_chapters(pages)
     return len(chunks), pages, is_book, chapters
 
-def get_retriever():
+def get_retriever(active_sources):
     store = PGVector(
         collection_name=COLLECTION_NAME,
         connection_string=CONNECTION_STRING,
         embedding_function=get_embeddings(),
     )
-    return store.as_retriever(search_kwargs={"k": 9})
+    search_kwargs = {"k": 9, "filter": {"source": {"$in": active_sources}}}
+    return store.as_retriever(search_kwargs=search_kwargs)
 
 # ── Session state ─────────────────────────────────────────────────────────────
 if "messages" not in st.session_state:
@@ -158,6 +159,8 @@ if "book_files" not in st.session_state:
     st.session_state.book_files = {}
 if "flashcards" not in st.session_state:
     st.session_state.flashcards = []
+if "active_sources" not in st.session_state:
+    st.session_state.active_sources = []  # filenames ingested this session
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -168,9 +171,13 @@ with st.sidebar:
     uploaded_file = st.file_uploader("Choose a PDF", type="pdf", label_visibility="collapsed")
 
     if uploaded_file:
-        if st.button("⚡ Ingest PDF"):
+        already_ingested = uploaded_file.name in st.session_state.active_sources
+        if already_ingested:
+            st.caption(f"'{uploaded_file.name}' is already active.")
+        elif st.button("⚡ Ingest PDF"):
             with st.spinner("Processing..."):
                 num_chunks, pages, is_book, chapters = ingest_uploaded_pdf(uploaded_file)
+            st.session_state.active_sources.append(uploaded_file.name)
             st.success(f"✅ {num_chunks} chunks stored")
             if is_book:
                 st.info(f"📚 Book detected — {len(chapters)} chapters")
@@ -180,6 +187,17 @@ with st.sidebar:
                 }
             else:
                 st.caption("📝 Regular document — flashcards not available")
+
+    # Active documents list
+    if st.session_state.active_sources:
+        st.markdown("**Active documents:**")
+        for src in list(st.session_state.active_sources):
+            col_name, col_btn = st.columns([5, 1])
+            col_name.caption(f"📄 {src}")
+            if col_btn.button("✕", key=f"remove_{src}"):
+                st.session_state.active_sources.remove(src)
+                st.session_state.book_files.pop(src, None)
+                st.rerun()
 
     if st.session_state.book_files:
         st.markdown("---")
@@ -222,33 +240,36 @@ st.markdown("""
 question = st.chat_input("Ask a question about your document...")
 
 if question:
-    st.session_state.messages.append({"role": "user", "content": question})
+    if not st.session_state.active_sources:
+        st.warning("Please upload and ingest a document first.")
+    else:
+        st.session_state.messages.append({"role": "user", "content": question})
 
-    retriever = get_retriever()
-    chunks = retriever.invoke(question)
-    context = "\n\n".join([doc.page_content for doc in chunks])
-    sources = [
-        f"{doc.metadata.get('source', 'unknown')} — {doc.page_content[:80]}..."
-        for doc in chunks
-    ]
+        retriever = get_retriever(st.session_state.active_sources)
+        chunks = retriever.invoke(question)
+        context = "\n\n".join([doc.page_content for doc in chunks])
+        sources = [
+            f"{doc.metadata.get('source', 'unknown')} — {doc.page_content[:80]}..."
+            for doc in chunks
+        ]
 
-    response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=1024,
-        system=(
-            "You are a helpful assistant. Answer using only the context below.\n"
-            "If the answer is not in the context, say 'I don't have that information.'\n\n"
-            f"Context:\n{context}"
-        ),
-        messages=[{"role": "user", "content": question}]
-    )
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=1024,
+            system=(
+                "You are a helpful assistant. Answer using only the context below.\n"
+                "If the answer is not in the context, say 'I don't have that information.'\n\n"
+                f"Context:\n{context}"
+            ),
+            messages=[{"role": "user", "content": question}]
+        )
 
-    answer = response.content[0].text
-    st.session_state.messages.append({
-        "role": "assistant",
-        "content": answer,
-        "sources": sources,
-    })
+        answer = response.content[0].text
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": answer,
+            "sources": sources,
+        })
 
 # ── Main tabs ─────────────────────────────────────────────────────────────────
 tab_chat, tab_fc = st.tabs(["💬  Chat", "🃏  Flashcards"])

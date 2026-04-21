@@ -143,14 +143,18 @@ def ingest_uploaded_pdf(uploaded_file):
     is_book, chapters = detect_book_and_chapters(pages)
     return len(chunks), pages, is_book, chapters
 
-def get_retriever(active_sources):
+def get_chunks(question, active_sources, k=9):
     store = PGVector(
         collection_name=COLLECTION_NAME,
         connection_string=CONNECTION_STRING,
         embedding_function=get_embeddings(),
     )
-    search_kwargs = {"k": 9, "filter": {"source": {"$in": active_sources}}}
-    return store.as_retriever(search_kwargs=search_kwargs)
+    active_set = set(active_sources)
+    # Fetch a large batch then filter by source in Python
+    # (PGVector $in filter is unreliable in this langchain-community version)
+    candidates = store.similarity_search(question, k=100)
+    filtered = [doc for doc in candidates if doc.metadata.get("source") in active_set]
+    return filtered[:k]
 
 # ── Session state ─────────────────────────────────────────────────────────────
 if "messages" not in st.session_state:
@@ -245,8 +249,7 @@ if question:
     else:
         st.session_state.messages.append({"role": "user", "content": question})
 
-        retriever = get_retriever(st.session_state.active_sources)
-        chunks = retriever.invoke(question)
+        chunks = get_chunks(question, st.session_state.active_sources)
         context = "\n\n".join([doc.page_content for doc in chunks])
         sources = [
             f"{doc.metadata.get('source', 'unknown')} — {doc.page_content[:80]}..."

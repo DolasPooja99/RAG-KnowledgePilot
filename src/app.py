@@ -299,7 +299,11 @@ with tab_fc:
         st.markdown("""
         <div class="empty-state">
           <div class="icon">🃏</div>
-          <p>Upload a book PDF, select chapters in the sidebar,<br>and click <strong>Generate Flashcards</strong>.</p>
+          <p><strong>How to generate flashcards:</strong></p>
+          <p>1. Upload a <strong>book PDF</strong> (must have chapter headings like "Chapter 1")<br>
+             2. Click <strong>Ingest PDF</strong> — if chapters are detected, a Flashcard Generator appears in the sidebar<br>
+             3. Select chapters, set card count, and click <strong>Generate Flashcards</strong></p>
+          <p style="color:#888; font-size:0.85rem;">Note: regular documents (resumes, articles) are not eligible for flashcard generation.</p>
         </div>
         """, unsafe_allow_html=True)
     else:

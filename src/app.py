@@ -218,6 +218,38 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# ── Chat input (must be outside tabs to work reliably) ────────────────────────
+question = st.chat_input("Ask a question about your document...")
+
+if question:
+    st.session_state.messages.append({"role": "user", "content": question})
+
+    retriever = get_retriever()
+    chunks = retriever.invoke(question)
+    context = "\n\n".join([doc.page_content for doc in chunks])
+    sources = [
+        f"{doc.metadata.get('source', 'unknown')} — {doc.page_content[:80]}..."
+        for doc in chunks
+    ]
+
+    response = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1024,
+        system=(
+            "You are a helpful assistant. Answer using only the context below.\n"
+            "If the answer is not in the context, say 'I don't have that information.'\n\n"
+            f"Context:\n{context}"
+        ),
+        messages=[{"role": "user", "content": question}]
+    )
+
+    answer = response.content[0].text
+    st.session_state.messages.append({
+        "role": "assistant",
+        "content": answer,
+        "sources": sources,
+    })
+
 # ── Main tabs ─────────────────────────────────────────────────────────────────
 tab_chat, tab_fc = st.tabs(["💬  Chat", "🃏  Flashcards"])
 
@@ -237,44 +269,6 @@ with tab_chat:
                     with st.expander("📎 Sources"):
                         for i, source in enumerate(message["sources"]):
                             st.caption(f"Chunk {i+1}: {source}")
-
-    question = st.chat_input("Ask a question about your document...")
-
-    if question:
-        st.session_state.messages.append({"role": "user", "content": question})
-        with st.chat_message("user"):
-            st.write(question)
-
-        retriever = get_retriever()
-        chunks = retriever.invoke(question)
-        context = "\n\n".join([doc.page_content for doc in chunks])
-        sources = [
-            f"{doc.metadata.get('source', 'unknown')} — {doc.page_content[:80]}..."
-            for doc in chunks
-        ]
-
-        response = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=1024,
-            system=(
-                "You are a helpful assistant. Answer using only the context below.\n"
-                "If the answer is not in the context, say 'I don't have that information.'\n\n"
-                f"Context:\n{context}"
-            ),
-            messages=[{"role": "user", "content": question}]
-        )
-
-        answer = response.content[0].text
-        st.session_state.messages.append({
-            "role": "assistant",
-            "content": answer,
-            "sources": sources,
-        })
-        with st.chat_message("assistant"):
-            st.write(answer)
-            with st.expander("📎 Sources"):
-                for i, source in enumerate(sources):
-                    st.caption(f"Chunk {i+1}: {source}")
 
 with tab_fc:
     if not st.session_state.flashcards:

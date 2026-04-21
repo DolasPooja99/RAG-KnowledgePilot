@@ -7,13 +7,19 @@ CHAPTER_PATTERNS = [
     r'^\s*(\d{1,2})\s+[A-Z][A-Za-z\s]{3,60}$',  # "1  Introduction to..."
 ]
 
+def _normalize(name):
+    """Lowercase, strip punctuation/numbers for fuzzy name comparison."""
+    return re.sub(r'[^a-z\s]', '', name.lower()).strip()
+
 def detect_book_and_chapters(pages):
     """
     Returns (is_book, chapters).
     chapters = [{"name": str, "start_page": int, "end_page": int}]
     A PDF is considered a book only if 2+ chapter headings are found.
+    Handles TOC duplicates: if the same chapter name appears again on a later
+    page (the real heading), the later occurrence replaces the TOC entry.
     """
-    chapters = []
+    raw = []
 
     for page_idx, page in enumerate(pages):
         for line in page.page_content.split('\n'):
@@ -22,15 +28,23 @@ def detect_book_and_chapters(pages):
                 continue
             for pattern in CHAPTER_PATTERNS:
                 if re.match(pattern, stripped, re.IGNORECASE):
-                    # Avoid duplicate adjacent chapter headings from repeated TOC lines
-                    if chapters and chapters[-1]['start_page'] == page_idx:
-                        break
-                    chapters.append({
+                    if raw and raw[-1]['start_page'] == page_idx:
+                        break  # skip multiple matches on the same page
+                    raw.append({
                         'name': stripped[:100],
                         'start_page': page_idx,
                         'end_page': page_idx,
                     })
                     break
+
+    # Deduplicate: if the same chapter name appears more than once (TOC + body),
+    # keep only the LAST occurrence (the actual heading in the body text).
+    seen = {}
+    for entry in raw:
+        key = _normalize(entry['name'])
+        seen[key] = entry  # later page overwrites earlier (TOC) entry
+    chapters = list(seen.values())
+    chapters.sort(key=lambda c: c['start_page'])
 
     for i in range(len(chapters) - 1):
         chapters[i]['end_page'] = chapters[i + 1]['start_page'] - 1

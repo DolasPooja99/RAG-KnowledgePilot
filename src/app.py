@@ -20,7 +20,7 @@ client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 st.set_page_config(
     page_title="RAG-KnowledgePilot",
-    page_icon="🧠",
+    page_icon="📖",
     layout="wide",
 )
 
@@ -161,7 +161,7 @@ if "flashcards" not in st.session_state:
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("## 🧠 RAG-KnowledgePilot")
+    st.markdown("## RAG-KnowledgePilot")
     st.markdown("---")
 
     st.markdown("### 📄 Upload Document")
